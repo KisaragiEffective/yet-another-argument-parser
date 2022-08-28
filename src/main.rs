@@ -25,9 +25,12 @@ struct CommandLineArgumentsDefinition {
     chars_after_single_dash: SingleDashFlagSolver
 }
 
+/// You may choose how `-flto` can be parsed, in two way.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum SingleDashFlagSolver {
+    /// `-flto` is `-f -l -t -o`, not a long flag. This is commonly used on GNU coreutils.
     ShortFlagSequence,
+    /// `-flto` is `--flto`, not short flags. This is commonly used on GCC or Clang.
     OneLongFlag,
 }
 
