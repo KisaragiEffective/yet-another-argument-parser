@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::num::NonZeroU8;
 use std::str::FromStr;
 
 struct Arg {
@@ -119,40 +118,32 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
     use crate::{Arg, CommandLineArgumentsDefinition};
 
     #[test]
     fn simplest() {
-        let def = CommandLineArgumentsDefinition {
-            args: vec![
-                Arg {
-                    name: "foo".to_string()
-                }
-            ]
-        };
-
-        let x = def.parse("--foo").unwrap();
-        assert!(x.rest.is_none());
-        assert_eq!(x.detected[0].name, "foo".to_string());
-
+        arbitrary_flags(&["foo"]);
     }
 
     #[test]
     fn two_flags() {
+        arbitrary_flags(&["foo", "bar"]);
+    }
+
+    fn arbitrary_flags<'slice: 'e, 'e>(flags: &'slice [&'e str]) {
+        let args = flags.iter().map(|a| Arg {
+            name: a.to_string()
+        }).collect::<Vec<_>>();
+
         let def = CommandLineArgumentsDefinition {
-            args: vec![
-                Arg {
-                    name: "foo".to_string(),
-                },
-                Arg {
-                    name: "bar".to_string(),
-                }
-            ]
+            args
         };
 
-        let x = def.parse("--foo --bar").unwrap();
+        let x = def.parse(flags.iter().map(|a| format!("--{a}")).join(" ").as_str()).unwrap();
         assert!(x.rest.is_none());
-        assert_eq!(x.detected[0].name, "foo".to_string());
-        assert_eq!(x.detected[1].name, "bar".to_string());
+        flags.iter().enumerate().for_each(|(i, e)| {
+            assert_eq!(x.detected[i].name, e.to_string());
+        })
     }
 }
