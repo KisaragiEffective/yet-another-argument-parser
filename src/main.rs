@@ -80,7 +80,7 @@ impl FromStr for UntypedArgs {
                         forward();
                         found_short_arg_name.push(cc);
                         if index.get() == s.len() {
-                            state = Complete;
+                            break
                         }
                     }
                 }
@@ -95,7 +95,6 @@ impl FromStr for UntypedArgs {
                     }
 
                     if index.get() == s.len() {
-                        state = Complete;
                         found_long_arg_name.push(name_buf.clone());
                         name_buf.clear();
                         break
@@ -113,15 +112,8 @@ impl FromStr for UntypedArgs {
                 }
                 RestIsExplicitRawForm => {
                     rest = Some(s[index.get()..].to_string());
-                    state = Complete;
-                }
-                Complete => {
                     break
                 }
-            }
-
-            if state == Complete {
-                break
             }
         }
 
@@ -153,7 +145,6 @@ enum ParserState {
     ParseName,
     ParseNameFirst,
     RestIsExplicitRawForm,
-    Complete,
 }
 
 fn main() {
