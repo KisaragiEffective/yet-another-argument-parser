@@ -1,5 +1,7 @@
 use std::cell::Cell;
+use std::ops::ControlFlow;
 use std::str::FromStr;
+use itertools::Itertools;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 struct ArgProp;
@@ -20,6 +22,13 @@ struct ShortArg {
 struct CommandLineArgumentsDefinition {
     long_args: Vec<LongArg>,
     short_args: Vec<ShortArg>,
+    chars_after_single_dash: SingleDashFlagSolver
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+enum SingleDashFlagSolver {
+    ShortFlagSequence,
+    OneLongFlag,
 }
 
 impl CommandLineArgumentsDefinition {
@@ -49,10 +58,18 @@ impl CommandLineArgumentsDefinition {
                 }
                 CaptureLongFlag => {
                     if cc == '-' {
-                        forward();
-                        state = ParseNameFirst;
+                        if self.chars_after_single_dash == SingleDashFlagSolver::ShortFlagSequence {
+                            forward();
+                            state = ParseNameFirst;
+                        } else {
+                            return Err(())
+                        }
                     } else {
-                        state = CaptureShortFlags;
+                        if self.chars_after_single_dash == SingleDashFlagSolver::ShortFlagSequence {
+                            state = CaptureShortFlags;
+                        } else {
+                            state = ParseName;
+                        }
                     }
                 }
                 CaptureShortFlags => {
@@ -64,7 +81,8 @@ impl CommandLineArgumentsDefinition {
                     } else {
                         forward();
                         found_short_arg_name.push(cc);
-                        if index.get() == s.len() {
+
+                        if index.get() == s.len() - 1 {
                             break
                         }
                     }
@@ -147,7 +165,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use crate::{LongArg, CommandLineArgumentsDefinition, ShortArg, ArgProp};
+    use crate::{LongArg, CommandLineArgumentsDefinition, ShortArg, ArgProp, SingleDashFlagSolver};
 
     #[test]
     fn simplest() {
@@ -194,6 +212,7 @@ mod tests {
                 name: a.to_string(),
                 settings: ArgProp,
             }).collect(),
+            chars_after_single_dash: SingleDashFlagSolver::ShortFlagSequence
         };
 
         let short_flags = short.iter().join("");
@@ -206,5 +225,50 @@ mod tests {
         long.iter().enumerate().for_each(|(i, e)| {
             assert_eq!(x.detected_long[i].name, e.to_string());
         });
+    }
+
+    #[test]
+    fn single_dash_long_flag() {
+        let def = CommandLineArgumentsDefinition {
+            long_args: vec![
+                LongArg {
+                    name: "foobarbaz".to_string(),
+                    settings: ArgProp
+                }
+            ],
+            short_args: vec![],
+            chars_after_single_dash: SingleDashFlagSolver::OneLongFlag
+        };
+
+        let x = def.parse("-foobarbaz").unwrap();
+        assert!(x.rest.is_none());
+        assert!(x.detected_short.is_empty());
+        assert_eq!(x.detected_long.len(), 1);
+        assert_eq!(x.detected_long[0].name, "foobarbaz".to_string());
+    }
+
+    #[test]
+    fn single_dash_long_flags() {
+        let def = CommandLineArgumentsDefinition {
+            long_args: vec![
+                LongArg {
+                    name: "foobarbaz".to_string(),
+                    settings: ArgProp
+                },
+                LongArg {
+                    name: "quux".to_string(),
+                    settings: ArgProp
+                }
+            ],
+            short_args: vec![],
+            chars_after_single_dash: SingleDashFlagSolver::OneLongFlag
+        };
+
+        let x = def.parse("-foobarbaz -quux").unwrap();
+        assert!(x.rest.is_none());
+        assert!(x.detected_short.is_empty());
+        assert_eq!(x.detected_long.len(), 2);
+        assert_eq!(x.detected_long[0].name, "foobarbaz".to_string());
+        assert_eq!(x.detected_long[1].name, "quux".to_string());
     }
 }
