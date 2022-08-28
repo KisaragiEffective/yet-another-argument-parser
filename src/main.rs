@@ -1,12 +1,25 @@
 use std::cell::Cell;
 use std::str::FromStr;
 
-struct Arg {
+#[derive(Eq, PartialEq, Clone, Debug)]
+struct ArgProp;
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+struct LongArg {
     name: String,
+    settings: ArgProp,
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
+struct ShortArg {
+    name: char,
+    settings: ArgProp,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
 struct CommandLineArgumentsDefinition {
-    args: Vec<Arg>,
+    long_args: Vec<LongArg>,
+    short_args: Vec<ShortArg>,
 }
 
 impl CommandLineArgumentsDefinition {
@@ -15,8 +28,10 @@ impl CommandLineArgumentsDefinition {
     }
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
 struct UntypedArgs {
-    detected: Vec<Arg>,
+    detected_long: Vec<LongArg>,
+    detected_short: Vec<ShortArg>,
     rest: Option<String>,
 }
 
@@ -26,39 +41,54 @@ impl FromStr for UntypedArgs {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let index = Cell::new(0);
         use crate::ParserState::*;
-        let mut state = ExpectTwoDash;
+        let mut state = CaptureNewFlag;
         let mut name_buf = String::new();
         let mut rest = None;
-        let mut found_arg_name = vec![];
+        let mut found_long_arg_name = vec![];
+        let mut found_short_arg_name = vec![];
         loop {
-            println!("{state:?} {index}", index = index.get());
-            let cc = s.chars().nth(index.get()).unwrap();
+            let cc = s.chars().nth(index.get()).expect("index overflow!!!");
+            println!("{state:?} {index} {cc}", index = index.get());
             let forward = || {
                 index.set(index.get() + 1);
             };
 
             match state {
-                ExpectTwoDash => {
+                CaptureNewFlag => {
                     if cc == '-' {
                         forward();
-                        state = ExpectOneDash;
+                        state = CaptureLongFlag;
                     } else {
                         return Err(())
                     }
                 }
-                ExpectOneDash => {
+                CaptureLongFlag => {
                     if cc == '-' {
                         forward();
                         state = ParseNameFirst;
                     } else {
+                        state = CaptureShortFlags;
+                    }
+                }
+                CaptureShortFlags => {
+                    if cc == ' ' {
+                        forward();
+                        state = CaptureNewFlag;
+                    } else if cc == '-' {
                         return Err(())
+                    } else {
+                        forward();
+                        found_short_arg_name.push(cc);
+                        if index.get() == s.len() {
+                            state = Complete;
+                        }
                     }
                 }
                 ParseName => {
                     index.set(index.get() + 1);
                     if cc == ' ' {
-                        state = ExpectTwoDash;
-                        found_arg_name.push(name_buf.clone());
+                        state = CaptureNewFlag;
+                        found_long_arg_name.push(name_buf.clone());
                         name_buf.clear();
                     } else {
                         name_buf.push(cc);
@@ -66,7 +96,7 @@ impl FromStr for UntypedArgs {
 
                     if index.get() == s.len() {
                         state = Complete;
-                        found_arg_name.push(name_buf.clone());
+                        found_long_arg_name.push(name_buf.clone());
                         name_buf.clear();
                         break
                     }
@@ -89,23 +119,37 @@ impl FromStr for UntypedArgs {
                     break
                 }
             }
+
+            if state == Complete {
+                break
+            }
         }
 
-        let args = found_arg_name.into_iter().map(|a| Arg {
-            name: a
+        let detected_long = found_long_arg_name.into_iter().map(|a| LongArg {
+            name: a,
+            settings: ArgProp
         }).collect();
 
-        Ok(Self {
-            detected: args,
+        let detected_short = found_short_arg_name.into_iter().map(|a| ShortArg {
+            name: a,
+            settings: ArgProp
+        }).collect();
+
+        let ret = Self {
+            detected_long,
+            detected_short,
             rest
-        })
+        };
+
+        Ok(ret)
     }
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum ParserState {
-    ExpectTwoDash,
-    ExpectOneDash,
+    CaptureNewFlag,
+    CaptureLongFlag,
+    CaptureShortFlags,
     ParseName,
     ParseNameFirst,
     RestIsExplicitRawForm,
@@ -119,31 +163,50 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use crate::{Arg, CommandLineArgumentsDefinition};
+    use crate::{LongArg, CommandLineArgumentsDefinition, ShortArg, ArgProp};
 
     #[test]
     fn simplest() {
-        arbitrary_flags(&["foo"]);
+        arbitrary_long_flags(&["foo"]);
     }
 
     #[test]
     fn two_flags() {
-        arbitrary_flags(&["foo", "bar"]);
+        arbitrary_long_flags(&["foo", "bar"]);
     }
 
-    fn arbitrary_flags<'slice: 'e, 'e>(flags: &'slice [&'e str]) {
-        let args = flags.iter().map(|a| Arg {
-            name: a.to_string()
+    fn arbitrary_long_flags<'slice: 'e, 'e>(long_flags: &'slice [&'e str]) {
+        let long_args = long_flags.iter().map(|a| LongArg {
+            name: a.to_string(),
+            settings: ArgProp,
         }).collect::<Vec<_>>();
 
         let def = CommandLineArgumentsDefinition {
-            args
+            long_args,
+            short_args: vec![],
         };
 
-        let x = def.parse(flags.iter().map(|a| format!("--{a}")).join(" ").as_str()).unwrap();
+        let x = def.parse(long_flags.iter().map(|a| format!("--{a}")).join(" ").as_str()).unwrap();
         assert!(x.rest.is_none());
-        flags.iter().enumerate().for_each(|(i, e)| {
-            assert_eq!(x.detected[i].name, e.to_string());
+        long_flags.iter().enumerate().for_each(|(i, e)| {
+            assert_eq!(x.detected_long[i].name, e.to_string());
         })
+    }
+
+    #[test]
+    fn short_flag() {
+        let def = CommandLineArgumentsDefinition {
+            short_args: vec![
+                ShortArg {
+                    name: 'a',
+                    settings: ArgProp,
+                }
+            ],
+            long_args: vec![],
+        };
+
+        let x = def.parse("-a").unwrap();
+        assert!(x.rest.is_none());
+        assert_eq!(x.detected_short[0].name, 'a');
     }
 }
