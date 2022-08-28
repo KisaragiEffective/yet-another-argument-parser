@@ -195,55 +195,27 @@ mod tests {
 
     #[test]
     fn short_flag() {
-        let def = CommandLineArgumentsDefinition {
-            short_args: vec![
-                ShortArg {
-                    name: 'a',
-                    settings: ArgProp,
-                }
-            ],
-            long_args: vec![],
-        };
-
-        let x = def.parse("-a").unwrap();
-        assert!(x.rest.is_none());
-        assert_eq!(x.detected_short[0].name, 'a');
+        arbitrary_short_flags(&['a'])
     }
 
     #[test]
     fn short_flags() {
+        arbitrary_short_flags(&['a', 'b', 'c', 'd', 'e']);
+    }
+
+    fn arbitrary_short_flags(short: &[char]) {
         let def = CommandLineArgumentsDefinition {
-            short_args: vec![
-                ShortArg {
-                    name: 'a',
-                    settings: ArgProp,
-                },
-                ShortArg {
-                    name: 'b',
-                    settings: ArgProp,
-                },
-                ShortArg {
-                    name: 'c',
-                    settings: ArgProp,
-                },
-                ShortArg {
-                    name: 'd',
-                    settings: ArgProp,
-                },
-                ShortArg {
-                    name: 'e',
-                    settings: ArgProp,
-                },
-            ],
-            long_args: vec![],
+            short_args: short.iter().map(|a| ShortArg {
+                name: *a,
+                settings: ArgProp,
+            }).collect(),
+            long_args: vec![]
         };
 
-        let x = def.parse("-abcde").unwrap();
+        let x = def.parse(format!("-{flags}", flags = short.iter().join("")).as_str()).unwrap();
         assert!(x.rest.is_none());
-        assert_eq!(x.detected_short[0].name, 'a');
-        assert_eq!(x.detected_short[1].name, 'b');
-        assert_eq!(x.detected_short[2].name, 'c');
-        assert_eq!(x.detected_short[3].name, 'd');
-        assert_eq!(x.detected_short[4].name, 'e');
+        short.iter().enumerate().for_each(|(i, e)| {
+            assert_eq!(x.detected_short[i].name, *e);
+        })
     }
 }
