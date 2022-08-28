@@ -24,21 +24,6 @@ struct CommandLineArgumentsDefinition {
 
 impl CommandLineArgumentsDefinition {
     fn parse(&self, s: &str) -> Result<UntypedArgs, ()> {
-        UntypedArgs::from_str(s)
-    }
-}
-
-#[derive(Eq, PartialEq, Clone, Debug)]
-struct UntypedArgs {
-    detected_long: Vec<LongArg>,
-    detected_short: Vec<ShortArg>,
-    rest: Option<String>,
-}
-
-impl FromStr for UntypedArgs {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let index = Cell::new(0);
         use crate::ParserState::*;
         let mut state = CaptureNewFlag;
@@ -127,7 +112,7 @@ impl FromStr for UntypedArgs {
             settings: ArgProp
         }).collect();
 
-        let ret = Self {
+        let ret = UntypedArgs {
             detected_long,
             detected_short,
             rest
@@ -136,6 +121,14 @@ impl FromStr for UntypedArgs {
         Ok(ret)
     }
 }
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+struct UntypedArgs {
+    detected_long: Vec<LongArg>,
+    detected_short: Vec<ShortArg>,
+    rest: Option<String>,
+}
+
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum ParserState {
