@@ -136,4 +136,23 @@ mod tests {
         assert_eq!(x.detected[0].name, "foo".to_string());
 
     }
+
+    #[test]
+    fn two_flags() {
+        let def = CommandLineArgumentsDefinition {
+            args: vec![
+                Arg {
+                    name: "foo".to_string(),
+                },
+                Arg {
+                    name: "bar".to_string(),
+                }
+            ]
+        };
+
+        let x = def.parse("--foo --bar").unwrap();
+        assert!(x.rest.is_none());
+        assert_eq!(x.detected[0].name, "foo".to_string());
+        assert_eq!(x.detected[1].name, "bar".to_string());
+    }
 }
