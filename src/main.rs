@@ -175,22 +175,9 @@ mod tests {
         arbitrary_long_flags(&["foo", "bar"]);
     }
 
+    #[inline]
     fn arbitrary_long_flags<'slice: 'e, 'e>(long_flags: &'slice [&'e str]) {
-        let long_args = long_flags.iter().map(|a| LongArg {
-            name: a.to_string(),
-            settings: ArgProp,
-        }).collect::<Vec<_>>();
-
-        let def = CommandLineArgumentsDefinition {
-            long_args,
-            short_args: vec![],
-        };
-
-        let x = def.parse(long_flags.iter().map(|a| format!("--{a}")).join(" ").as_str()).unwrap();
-        assert!(x.rest.is_none());
-        long_flags.iter().enumerate().for_each(|(i, e)| {
-            assert_eq!(x.detected_long[i].name, e.to_string());
-        })
+        arbitrary_short_and_long(&[], long_flags);
     }
 
     #[test]
@@ -203,19 +190,37 @@ mod tests {
         arbitrary_short_flags(&['a', 'b', 'c', 'd', 'e']);
     }
 
+    #[inline]
     fn arbitrary_short_flags(short: &[char]) {
+        arbitrary_short_and_long(short, &[]);
+    }
+
+    #[test]
+    fn mixed() {
+        arbitrary_short_and_long(&['a', 'b', 'c'], &["foo", "bar", "baz"]);
+    }
+
+    fn arbitrary_short_and_long<'ss, 'ls: 'le, 'le>(short: &'ss [char], long: &'ls [&'le str]) {
         let def = CommandLineArgumentsDefinition {
             short_args: short.iter().map(|a| ShortArg {
                 name: *a,
                 settings: ArgProp,
             }).collect(),
-            long_args: vec![]
+            long_args: long.iter().map(|a| LongArg {
+                name: a.to_string(),
+                settings: ArgProp,
+            }).collect(),
         };
 
-        let x = def.parse(format!("-{flags}", flags = short.iter().join("")).as_str()).unwrap();
+        let short_flags = short.iter().join("");
+        let long_flags = long.iter().map(|a| format!("--{a}")).join(" ");
+        let x = def.parse(format!("-{short_flags} {long_flags}").as_str()).unwrap();
         assert!(x.rest.is_none());
         short.iter().enumerate().for_each(|(i, e)| {
             assert_eq!(x.detected_short[i].name, *e);
-        })
+        });
+        long.iter().enumerate().for_each(|(i, e)| {
+            assert_eq!(x.detected_long[i].name, e.to_string());
+        });
     }
 }
