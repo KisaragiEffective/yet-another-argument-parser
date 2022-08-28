@@ -209,4 +209,41 @@ mod tests {
         assert!(x.rest.is_none());
         assert_eq!(x.detected_short[0].name, 'a');
     }
+
+    #[test]
+    fn short_flags() {
+        let def = CommandLineArgumentsDefinition {
+            short_args: vec![
+                ShortArg {
+                    name: 'a',
+                    settings: ArgProp,
+                },
+                ShortArg {
+                    name: 'b',
+                    settings: ArgProp,
+                },
+                ShortArg {
+                    name: 'c',
+                    settings: ArgProp,
+                },
+                ShortArg {
+                    name: 'd',
+                    settings: ArgProp,
+                },
+                ShortArg {
+                    name: 'e',
+                    settings: ArgProp,
+                },
+            ],
+            long_args: vec![],
+        };
+
+        let x = def.parse("-abcde").unwrap();
+        assert!(x.rest.is_none());
+        assert_eq!(x.detected_short[0].name, 'a');
+        assert_eq!(x.detected_short[1].name, 'b');
+        assert_eq!(x.detected_short[2].name, 'c');
+        assert_eq!(x.detected_short[3].name, 'd');
+        assert_eq!(x.detected_short[4].name, 'e');
+    }
 }
